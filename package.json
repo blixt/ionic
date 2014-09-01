@@ -1,10 +1,10 @@
 {
   "name": "ionic",
   "private": false,
-  "version": "1.0.0-beta.11",
+  "version": "1.0.0-beta.11-blixt",
   "codename": "indium-iguana",
   "repository": {
-    "url": "git://github.com/driftyco/ionic.git"
+    "url": "git://github.com/blixt/ionic.git"
   },
   "devDependencies": {
     "karma": "^0.12.22",

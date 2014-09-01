@@ -2,7 +2,7 @@
  * Copyright 2014 Drifty Co.
  * http://drifty.com/
  *
- * Ionic, v1.0.0-beta.11
+ * Ionic, v1.0.0-beta.11-blixt
  * A powerful HTML5 mobile app framework.
  * http://ionicframework.com/
  *
@@ -19,7 +19,7 @@
 window.ionic = {
   controllers: {},
   views: {},
-  version: '1.0.0-beta.11'
+  version: '1.0.0-beta.11-blixt'
 };
 
 (function(window, document, ionic) {
@@ -148,9 +148,9 @@ window.ionic = {
      * Get a rect representing the bounds of the given textNode.
      * @param {DOMElement} textNode The textNode to find the bounds of.
      * @returns {object} An object representing the bounds of the node. Properties:
-     *   - `{number}` `left` The left positton of the textNode.
-     *   - `{number}` `right` The right positton of the textNode.
-     *   - `{number}` `top` The top positton of the textNode.
+     *   - `{number}` `left` The left position of the textNode.
+     *   - `{number}` `right` The right position of the textNode.
+     *   - `{number}` `top` The top position of the textNode.
      *   - `{number}` `bottom` The bottom position of the textNode.
      *   - `{number}` `width` The width of the textNode.
      *   - `{number}` `height` The height of the textNode.
@@ -211,27 +211,6 @@ window.ionic = {
      */
     swapNodes: function(src, dest) {
       dest.parentNode.insertBefore(src, dest);
-    },
-
-    /**
-     * @private
-     */
-    centerElementByMargin: function(el) {
-      el.style.marginLeft = (-el.offsetWidth) / 2 + 'px';
-      el.style.marginTop = (-el.offsetHeight) / 2 + 'px';
-    },
-    //Center twice, after raf, to fix a bug with ios and showing elements
-    //that have just been attached to the DOM.
-    centerElementByMarginTwice: function(el) {
-      ionic.requestAnimationFrame(function() {
-        ionic.DomUtil.centerElementByMargin(el);
-        setTimeout(function() {
-          ionic.DomUtil.centerElementByMargin(el);
-          setTimeout(function() {
-            ionic.DomUtil.centerElementByMargin(el);
-          });
-        });
-      });
     },
 
     elementIsDescendant: function(el, parent, stopAt) {
@@ -2525,6 +2504,10 @@ ionic.tap = {
           clonedInput.className = focusInput.className;
           clonedInput.classList.add('cloned-text-input');
           clonedInput.readOnly = true;
+          if (focusInput.isContentEditable) {
+            clonedInput.contentEditable = focusInput.contentEditable;
+            clonedInput.innerHTML = focusInput.innerHTML;
+          }
           focusInput.parentElement.insertBefore(clonedInput, focusInput);
           focusInput.style.top = focusInput.offsetTop;
           focusInput.classList.add('previous-input-focus');
@@ -2592,6 +2575,21 @@ ionic.tap = {
     // used to cancel any simulated clicks which may happen on a touchend/mouseup
     // gestures uses this method within its tap and hold events
     tapPointerMoved = true;
+  },
+
+  pointerCoord: function(event) {
+    // This method can get coordinates for both a mouse click
+    // or a touch depending on the given event
+    var c = { x:0, y:0 };
+    if(event) {
+      var touches = event.touches && event.touches.length ? event.touches : [event];
+      var e = (event.changedTouches && event.changedTouches[0]) || touches[0];
+      if(e) {
+        c.x = e.clientX || e.pageX || 0;
+        c.y = e.clientY || e.pageY || 0;
+      }
+    }
+    return c;
   }
 
 };
@@ -2611,7 +2609,7 @@ function tapClick(e) {
 
   if( ionic.tap.requiresNativeClick(ele) || tapPointerMoved ) return false;
 
-  var c = getPointerCoordinates(e);
+  var c = ionic.tap.pointerCoord(e);
 
   void 0;
   triggerMouseEvent('click', ele, c.x, c.y);
@@ -2668,7 +2666,7 @@ function tapMouseDown(e) {
   }
 
   tapPointerMoved = false;
-  tapPointerStart = getPointerCoordinates(e);
+  tapPointerStart = ionic.tap.pointerCoord(e);
 
   tapEventListener('mousemove');
   ionic.activator.start(e);
@@ -2708,7 +2706,7 @@ function tapTouchStart(e) {
   tapPointerMoved = false;
 
   tapEnableTouchEvents();
-  tapPointerStart = getPointerCoordinates(e);
+  tapPointerStart = ionic.tap.pointerCoord(e);
 
   tapEventListener(tapTouchMoveListener);
   ionic.activator.start(e);
@@ -2856,7 +2854,7 @@ function tapHasPointerMoved(endEvent) {
   if(!endEvent || endEvent.target.nodeType !== 1 || !tapPointerStart || ( tapPointerStart.x === 0 && tapPointerStart.y === 0 )) {
     return false;
   }
-  var endCoordinates = getPointerCoordinates(endEvent);
+  var endCoordinates = ionic.tap.pointerCoord(endEvent);
 
   var hasClassList = !!(endEvent.target.classList && endEvent.target.classList.contains);
   var releaseTolerance = hasClassList & endEvent.target.classList.contains('button') ?
@@ -2865,21 +2863,6 @@ function tapHasPointerMoved(endEvent) {
 
   return Math.abs(tapPointerStart.x - endCoordinates.x) > releaseTolerance ||
          Math.abs(tapPointerStart.y - endCoordinates.y) > releaseTolerance;
-}
-
-function getPointerCoordinates(event) {
-  // This method can get coordinates for both a mouse click
-  // or a touch depending on the given event
-  var c = { x:0, y:0 };
-  if(event) {
-    var touches = event.touches && event.touches.length ? event.touches : [event];
-    var e = (event.changedTouches && event.changedTouches[0]) || touches[0];
-    if(e) {
-      c.x = e.clientX || e.pageX || 0;
-      c.y = e.clientY || e.pageY || 0;
-    }
-  }
-  return c;
 }
 
 function tapContainingElement(ele, allowSelf) {
@@ -2933,7 +2916,7 @@ ionic.DomUtil.ready(function(){
         var ele = e.target;
         var eleToActivate;
 
-        for(var x=0; x<4; x++) {
+        for(var x=0; x<6; x++) {
           if(!ele || ele.nodeType !== 1) break;
           if(eleToActivate && ele.classList.contains('item')) {
             eleToActivate = ele;
@@ -2945,6 +2928,10 @@ ionic.DomUtil.ready(function(){
           }
           if( ele.classList.contains('button') ) {
             eleToActivate = ele;
+            break;
+          }
+          // no sense climbing past these
+          if(ele.classList.contains('pane') || ele.tagName == 'BODY' || ele.tagName == 'ION-CONTENT'){
             break;
           }
           ele = ele.parentElement;
@@ -4042,7 +4029,7 @@ ionic.views.Scroll = ionic.views.View.inherit({
       getContentHeight: function() {
         return Math.max(self.__content.scrollHeight, self.__content.offsetHeight + self.__content.offsetTop);
       }
-		};
+    };
 
     for (var key in options) {
       this.options[key] = options[key];
@@ -4372,7 +4359,7 @@ ionic.views.Scroll = ionic.views.View.inherit({
     }
 
     self.touchStart = function(e) {
-      self.startCoordinates = getPointerCoordinates(e);
+      self.startCoordinates = ionic.tap.pointerCoord(e);
 
       if ( ionic.tap.ignoreScrollStart(e) ) {
         return;
@@ -4412,7 +4399,7 @@ ionic.views.Scroll = ionic.views.View.inherit({
 
       if(self.startCoordinates) {
         // we have start coordinates, so get this touch move's current coordinates
-        var currentCoordinates = getPointerCoordinates(e);
+        var currentCoordinates = ionic.tap.pointerCoord(e);
 
         if( self.__isSelectable &&
             ionic.tap.isTextInput(e.target) &&
@@ -4447,12 +4434,6 @@ ionic.views.Scroll = ionic.views.View.inherit({
       if( !self.__isDragging && !self.__isDecelerating && !self.__isAnimating ) {
         ionic.tap.removeClonedInputs(container, self);
       }
-    };
-
-    self.options.orgScrollingComplete = self.options.scrollingComplete;
-    self.options.scrollingComplete = function() {
-      ionic.tap.removeClonedInputs(container, self);
-      self.options.orgScrollingComplete();
     };
 
     if ('ontouchstart' in window) {
@@ -4537,7 +4518,7 @@ ionic.views.Scroll = ionic.views.View.inherit({
     }
   },
 
-  __removeEventHandlers: function() {
+  __cleanup: function() {
     var container = this.__container;
 
     container.removeEventListener('touchstart', self.touchStart);
@@ -4559,6 +4540,14 @@ ionic.views.Scroll = ionic.views.View.inherit({
     document.removeEventListener("mousemove", self.mouseMove);
     document.removeEventListener("mouseup", self.mouseUp);
     document.removeEventListener('mousewheel', self.mouseWheel);
+
+    delete this.__container;
+    delete this.__content;
+    delete this.__indicatorX;
+    delete this.__indicatorY;
+
+    this.resize = this.scrollTo = this.zoomTo = 
+      this.__scrollingComplete = angular.noop;
   },
 
   /** Create a scroll bar div with the given direction **/
@@ -4758,6 +4747,7 @@ ionic.views.Scroll = ionic.views.View.inherit({
   __scrollingComplete: function() {
     var self = this;
     self.options.scrollingComplete();
+    ionic.tap.removeClonedInputs(self.__container, self);
 
     self.__fadeScrollbars('out');
   },
@@ -4766,8 +4756,8 @@ ionic.views.Scroll = ionic.views.View.inherit({
     // Update Scroller dimensions for changed content
     // Add padding to bottom of content
     this.setDimensions(
-    	this.__container.clientWidth,
-    	this.__container.clientHeight,
+      this.__container.clientWidth,
+      this.__container.clientHeight,
       this.options.getContentWidth(),
       this.options.getContentHeight()
     );
@@ -4929,8 +4919,10 @@ ionic.views.Scroll = ionic.views.View.inherit({
    * @param activateCallback {Function} Callback to execute on activation. This is for signalling the user about a refresh is about to happen when he release.
    * @param deactivateCallback {Function} Callback to execute on deactivation. This is for signalling the user about the refresh being cancelled.
    * @param startCallback {Function} Callback to execute to start the real async refresh action. Call {@link #finishPullToRefresh} after finish of refresh.
+   * @param showCallback {Function} Callback to execute when the refresher should be shown. This is for showing the refresher during a negative scrollTop.
+   * @param hideCallback {Function} Callback to execute when the refresher should be hidden. This is for hiding the refresher when it's behind the nav bar.
    */
-  activatePullToRefresh: function(height, activateCallback, deactivateCallback, startCallback) {
+  activatePullToRefresh: function(height, activateCallback, deactivateCallback, startCallback, showCallback, hideCallback) {
 
     var self = this;
 
@@ -4938,7 +4930,8 @@ ionic.views.Scroll = ionic.views.View.inherit({
     self.__refreshActivate = activateCallback;
     self.__refreshDeactivate = deactivateCallback;
     self.__refreshStart = startCallback;
-
+    self.__refreshShow = showCallback;
+    self.__refreshHide = hideCallback;
   },
 
 
@@ -5409,6 +5402,15 @@ ionic.views.Scroll = ionic.views.View.inherit({
             // Support pull-to-refresh (only when only y is scrollable)
             if (!self.__enableScrollX && self.__refreshHeight != null) {
 
+              // hide the refresher when it's behind the header bar in case of header transparency
+              if(scrollTop < 0){
+                self.__refreshHidden = false;
+                self.__refreshShow();
+              }else{
+                self.__refreshHide();
+                self.__refreshHidden = true;
+              }
+
               if (!self.__refreshActive && scrollTop <= -self.__refreshHeight) {
 
                 self.__refreshActive = true;
@@ -5435,6 +5437,10 @@ ionic.views.Scroll = ionic.views.View.inherit({
             scrollTop = 0;
 
           }
+        }else if(self.__refreshHeight && !self.__refreshHidden){
+          // if a positive scroll value and the refresher is still not hidden, hide it
+          self.__refreshHide();
+          self.__refreshHidden = true;
         }
       }
 
@@ -6087,10 +6093,24 @@ ionic.scroll = {
   var ITEM_CLASS = 'item';
   var ITEM_CONTENT_CLASS = 'item-content';
   var ITEM_SLIDING_CLASS = 'item-sliding';
-  var ITEM_OPTIONS_CLASS = 'item-options';
+  var ITEM_OPTIONS_LEFT_CLASS = 'item-options-left';
+  var ITEM_OPTIONS_RIGHT_CLASS = 'item-options-right';
   var ITEM_PLACEHOLDER_CLASS = 'item-placeholder';
   var ITEM_REORDERING_CLASS = 'item-reordering';
   var ITEM_REORDER_BTN_CLASS = 'item-reorder';
+
+  var RUBBER_COEFFICIENT = 0.4;
+  var VELOCITY_TRESHOLD = 0.3;
+
+  function grabButtons(content, cls) {
+    var buttons = content.parentNode.querySelector('.' + cls);
+    if(!buttons) {
+      return {width: 0};
+    }
+    buttons.classList.remove('invisible');
+
+    return {el: buttons, width: buttons.offsetWidth};
+  }
 
   var DragOp = function() {};
   DragOp.prototype = {
@@ -6114,7 +6134,7 @@ ionic.scroll = {
   SlideDrag.prototype = new DragOp();
 
   SlideDrag.prototype.start = function(e) {
-    var content, buttons, offsetX, buttonsWidth;
+    var content, buttonsLeft, buttonsRight, offsetX;
 
     if (!this.canSwipe()) {
       return;
@@ -6140,17 +6160,15 @@ ionic.scroll = {
     offsetX = parseFloat(content.style[ionic.CSS.TRANSFORM].replace('translate3d(', '').split(',')[0]) || 0;
 
     // Grab the buttons
-    buttons = content.parentNode.querySelector('.' + ITEM_OPTIONS_CLASS);
-    if(!buttons) {
+    buttonsLeft = grabButtons(content, ITEM_OPTIONS_LEFT_CLASS);
+    buttonsRight = grabButtons(content, ITEM_OPTIONS_RIGHT_CLASS);
+    if(!buttonsLeft.el && !buttonsRight.el) {
       return;
     }
-    buttons.classList.remove('invisible');
-
-    buttonsWidth = buttons.offsetWidth;
 
     this._currentDrag = {
-      buttons: buttons,
-      buttonsWidth: buttonsWidth,
+      buttonsLeft: buttonsLeft,
+      buttonsRight: buttonsRight,
       content: content,
       startOffsetX: offsetX
     };
@@ -6175,13 +6193,14 @@ ionic.scroll = {
     lastDrag.content.style[ionic.CSS.TRANSFORM] = '';
     ionic.requestAnimationFrame(function() {
       setTimeout(function() {
-        lastDrag.buttons && lastDrag.buttons.classList.add('invisible');
+        lastDrag.buttonsLeft.el && lastDrag.buttonsLeft.el.classList.add('invisible');
+        lastDrag.buttonsRight.el && lastDrag.buttonsRight.el.classList.add('invisible');
       }, 250);
     });
   };
 
   SlideDrag.prototype.drag = ionic.animationFrameThrottle(function(e) {
-    var buttonsWidth;
+    var leftWidth, rightWidth;
 
     // We really aren't dragging
     if(!this._currentDrag) {
@@ -6198,15 +6217,20 @@ ionic.scroll = {
     }
 
     if(this._isDragging) {
-      buttonsWidth = this._currentDrag.buttonsWidth;
+      leftWidth = this._currentDrag.buttonsLeft.width;
+      rightWidth = this._currentDrag.buttonsRight.width;
 
-      // Grab the new X point, capping it at zero
-      var newX = Math.min(0, this._currentDrag.startOffsetX + e.gesture.deltaX);
+      // Grab the new X point, capping it at zero if applicable
+      var newX = this._currentDrag.startOffsetX + e.gesture.deltaX;
+      if (!leftWidth && newX > 0) newX = 0;
+      if (!rightWidth && newX < 0) newX = 0;
 
       // If the new X position is past the buttons, we need to slow down the drag (rubber band style)
-      if(newX < -buttonsWidth) {
-        // Calculate the new X position, capped at the top of the buttons
-        newX = Math.min(-buttonsWidth, -buttonsWidth + (((e.gesture.deltaX + buttonsWidth) * 0.4)));
+      if(newX > leftWidth) {
+        newX = Math.max(leftWidth, leftWidth + (e.gesture.deltaX - leftWidth) * RUBBER_COEFFICIENT);
+      }
+      if(newX < -rightWidth) {
+        newX = Math.min(-rightWidth, -rightWidth + (e.gesture.deltaX + rightWidth) * RUBBER_COEFFICIENT);
       }
 
       this._currentDrag.content.style[ionic.CSS.TRANSFORM] = 'translate3d(' + newX + 'px, 0, 0)';
@@ -6215,7 +6239,7 @@ ionic.scroll = {
   });
 
   SlideDrag.prototype.end = function(e, doneCallback) {
-    var _this = this;
+    var _this = this, offsetX, leftWidth, rightWidth, restingPoint, tooSlow;
 
     // There is no drag, just end immediately
     if(!this._currentDrag) {
@@ -6225,27 +6249,32 @@ ionic.scroll = {
 
     // If we are currently dragging, we want to snap back into place
     // The final resting point X will be the width of the exposed buttons
-    var restingPoint = -this._currentDrag.buttonsWidth;
+    offsetX = this._currentDrag.startOffsetX;
+    leftWidth = this._currentDrag.buttonsLeft.width;
+    rightWidth = this._currentDrag.buttonsRight.width;
 
     // Check if the drag didn't clear the buttons mid-point
     // and we aren't moving fast enough to swipe open
-    if(e.gesture.deltaX > -(this._currentDrag.buttonsWidth/2)) {
-
-      // If we are going left but too slow, or going right, go back to resting
-      if(e.gesture.direction == "left" && Math.abs(e.gesture.velocityX) < 0.3) {
-        restingPoint = 0;
-      } else if(e.gesture.direction == "right") {
+    tooSlow = Math.abs(e.gesture.velocityX) < VELOCITY_TRESHOLD;
+    if(e.gesture.direction == 'left') {
+      restingPoint = -rightWidth;
+      if (e.gesture.deltaX + offsetX > -rightWidth / 2 && tooSlow) {
         restingPoint = 0;
       }
-
+    } else {
+      restingPoint = leftWidth;
+      if (e.gesture.deltaX + offsetX < leftWidth / 2 && tooSlow) {
+        restingPoint = 0;
+      }
     }
 
     ionic.requestAnimationFrame(function() {
       if(restingPoint === 0) {
         _this._currentDrag.content.style[ionic.CSS.TRANSFORM] = '';
-        var buttons = _this._currentDrag.buttons;
+        var drag = _this._currentDrag;
         setTimeout(function() {
-          buttons && buttons.classList.add('invisible');
+          drag.buttonsLeft.el && drag.buttonsLeft.el.classList.add('invisible');
+          drag.buttonsRight.el && drag.buttonsRight.el.classList.add('invisible');
         }, 250);
       } else {
         _this._currentDrag.content.style[ionic.CSS.TRANSFORM] = 'translate3d(' + restingPoint + 'px, 0, 0)';
@@ -6389,7 +6418,7 @@ ionic.scroll = {
           return i;
         }
       } else if (dragOffsetTop > el.offsetTop - el.offsetHeight / 2 &&
-                 dragOffsetTop < el.offsetTop + el.offsetHeight * 1.5) {
+                 dragOffsetTop < el.offsetTop + el.offsetHeight) {
         return i;
       }
     }
@@ -6591,7 +6620,7 @@ ionic.scroll = {
 
         // Make sure this is an item with buttons
         item = this._getItem(e.target);
-        if(item && item.querySelector('.item-options')) {
+        if(item && (item.querySelector('.' + ITEM_OPTIONS_LEFT_CLASS) || item.querySelector('.' + ITEM_OPTIONS_RIGHT_CLASS))) {
           this._dragOp = new SlideDrag({ el: this.el, canSwipe: this.canSwipe });
           this._dragOp.start(e);
           e.preventDefault();
@@ -6624,8 +6653,6 @@ ionic.scroll = {
      * Process the drag event to move the item to the left or right.
      */
     _handleDrag: function(e) {
-      var _this = this, content, buttons;
-
       if(Math.abs(e.gesture.deltaY) > 5) {
         this._didDragUpOrDown = true;
       }
@@ -6708,7 +6735,6 @@ ionic.scroll = {
       this.isEnabled = (typeof opts.isEnabled === 'undefined') ? true : opts.isEnabled;
       this.setWidth(opts.width);
     },
-
     getFullWidth: function() {
       return this.width;
     },
@@ -6733,12 +6759,10 @@ ionic.scroll = {
 
   ionic.views.SideMenuContent = ionic.views.View.inherit({
     initialize: function(opts) {
-      var _this = this;
-
       ionic.extend(this, {
         animationClass: 'menu-animated',
         onDrag: function(e) {},
-        onEndDrag: function(e) {},
+        onEndDrag: function(e) {}
       }, opts);
 
       ionic.onGesture('drag', ionic.proxy(this._onDrag, this), this.el);
@@ -7512,337 +7536,6 @@ ionic.views.Slider = ionic.views.View.inherit({
       return this.checkbox.checked;
     }
 
-  });
-
-})(ionic);
-
-(function(ionic) {
-'use strict';
-  ionic.controllers.ViewController = function(options) {
-    this.initialize.apply(this, arguments);
-  };
-
-  ionic.controllers.ViewController.inherit = ionic.inherit;
-
-  ionic.extend(ionic.controllers.ViewController.prototype, {
-    initialize: function() {},
-    // Destroy this view controller, including all child views
-    destroy: function() {
-    }
-  });
-
-})(window.ionic);
-
-(function(ionic) {
-'use strict';
-
-/**
-   * The SideMenuController is a controller with a left and/or right menu that
-   * can be slid out and toggled. Seen on many an app.
-   *
-   * The right or left menu can be disabled or not used at all, if desired.
-   */
-  ionic.controllers.SideMenuController = ionic.controllers.ViewController.inherit({
-    initialize: function(options) {
-      var self = this;
-
-      this.left = options.left;
-      this.right = options.right;
-      this.content = options.content;
-      this.dragThresholdX = options.dragThresholdX || 10;
-
-      this._rightShowing = false;
-      this._leftShowing = false;
-      this._isDragging = false;
-
-      if(this.content) {
-        this.content.onDrag = function(e) {
-          self._handleDrag(e);
-        };
-
-        this.content.onEndDrag =function(e) {
-          self._endDrag(e);
-        };
-      }
-    },
-    /**
-     * Set the content view controller if not passed in the constructor options.
-     *
-     * @param {object} content
-     */
-    setContent: function(content) {
-      var self = this;
-
-      this.content = content;
-
-      this.content.onDrag = function(e) {
-        self._handleDrag(e);
-      };
-
-      this.content.endDrag = function(e) {
-        self._endDrag(e);
-      };
-    },
-
-    isOpenLeft: function() {
-      return this.getOpenAmount() > 0;
-    },
-
-    isOpenRight: function() {
-      return this.getOpenAmount() < 0;
-    },
-
-    /**
-     * Toggle the left menu to open 100%
-     */
-    toggleLeft: function(shouldOpen) {
-      var openAmount = this.getOpenAmount();
-      if (arguments.length === 0) {
-        shouldOpen = openAmount <= 0;
-      }
-      this.content.enableAnimation();
-      if(!shouldOpen) {
-        this.openPercentage(0);
-      } else {
-        this.openPercentage(100);
-      }
-    },
-
-    /**
-     * Toggle the right menu to open 100%
-     */
-    toggleRight: function(shouldOpen) {
-      var openAmount = this.getOpenAmount();
-      if (arguments.length === 0) {
-        shouldOpen = openAmount >= 0;
-      }
-      this.content.enableAnimation();
-      if(!shouldOpen) {
-        this.openPercentage(0);
-      } else {
-        this.openPercentage(-100);
-      }
-    },
-
-    /**
-     * Close all menus.
-     */
-    close: function() {
-      this.openPercentage(0);
-    },
-
-    /**
-     * @return {float} The amount the side menu is open, either positive or negative for left (positive), or right (negative)
-     */
-    getOpenAmount: function() {
-      return this.content && this.content.getTranslateX() || 0;
-    },
-
-    /**
-     * @return {float} The ratio of open amount over menu width. For example, a
-     * menu of width 100 open 50 pixels would be open 50% or a ratio of 0.5. Value is negative
-     * for right menu.
-     */
-    getOpenRatio: function() {
-      var amount = this.getOpenAmount();
-      if(amount >= 0) {
-        return amount / this.left.width;
-      }
-      return amount / this.right.width;
-    },
-
-    isOpen: function() {
-      return this.getOpenAmount() !== 0;
-    },
-
-    /**
-     * @return {float} The percentage of open amount over menu width. For example, a
-     * menu of width 100 open 50 pixels would be open 50%. Value is negative
-     * for right menu.
-     */
-    getOpenPercentage: function() {
-      return this.getOpenRatio() * 100;
-    },
-
-    /**
-     * Open the menu with a given percentage amount.
-     * @param {float} percentage The percentage (positive or negative for left/right) to open the menu.
-     */
-    openPercentage: function(percentage) {
-      var p = percentage / 100;
-
-      if(this.left && percentage >= 0) {
-        this.openAmount(this.left.width * p);
-      } else if(this.right && percentage < 0) {
-        var maxRight = this.right.width;
-        this.openAmount(this.right.width * p);
-      }
-
-      if(percentage !== 0) {
-        document.body.classList.add('menu-open');
-      } else {
-        document.body.classList.remove('menu-open');
-      }
-    },
-
-    /**
-     * Open the menu the given pixel amount.
-     * @param {float} amount the pixel amount to open the menu. Positive value for left menu,
-     * negative value for right menu (only one menu will be visible at a time).
-     */
-    openAmount: function(amount) {
-      var maxLeft = this.left && this.left.width || 0;
-      var maxRight = this.right && this.right.width || 0;
-
-      // Check if we can move to that side, depending if the left/right panel is enabled
-      if(!(this.left && this.left.isEnabled) && amount > 0) {
-        this.content.setTranslateX(0);
-        return;
-      }
-
-      if(!(this.right && this.right.isEnabled) && amount < 0) {
-        this.content.setTranslateX(0);
-        return;
-      }
-
-      if(this._leftShowing && amount > maxLeft) {
-        this.content.setTranslateX(maxLeft);
-        return;
-      }
-
-      if(this._rightShowing && amount < -maxRight) {
-        this.content.setTranslateX(-maxRight);
-        return;
-      }
-
-      this.content.setTranslateX(amount);
-
-      if(amount >= 0) {
-        this._leftShowing = true;
-        this._rightShowing = false;
-
-        if(amount > 0) {
-          // Push the z-index of the right menu down
-          this.right && this.right.pushDown && this.right.pushDown();
-          // Bring the z-index of the left menu up
-          this.left && this.left.bringUp && this.left.bringUp();
-        }
-      } else {
-        this._rightShowing = true;
-        this._leftShowing = false;
-
-        // Bring the z-index of the right menu up
-        this.right && this.right.bringUp && this.right.bringUp();
-        // Push the z-index of the left menu down
-        this.left && this.left.pushDown && this.left.pushDown();
-      }
-    },
-
-    /**
-     * Given an event object, find the final resting position of this side
-     * menu. For example, if the user "throws" the content to the right and
-     * releases the touch, the left menu should snap open (animated, of course).
-     *
-     * @param {Event} e the gesture event to use for snapping
-     */
-    snapToRest: function(e) {
-      // We want to animate at the end of this
-      this.content.enableAnimation();
-      this._isDragging = false;
-
-      // Check how much the panel is open after the drag, and
-      // what the drag velocity is
-      var ratio = this.getOpenRatio();
-
-      if(ratio === 0) {
-        // Just to be safe
-        this.openPercentage(0);
-        return;
-      }
-
-      var velocityThreshold = 0.3;
-      var velocityX = e.gesture.velocityX;
-      var direction = e.gesture.direction;
-
-      // Less than half, going left
-      //if(ratio > 0 && ratio < 0.5 && direction == 'left' && velocityX < velocityThreshold) {
-      //this.openPercentage(0);
-      //}
-
-      // Going right, less than half, too slow (snap back)
-      if(ratio > 0 && ratio < 0.5 && direction == 'right' && velocityX < velocityThreshold) {
-        this.openPercentage(0);
-      }
-
-      // Going left, more than half, too slow (snap back)
-      else if(ratio > 0.5 && direction == 'left' && velocityX < velocityThreshold) {
-        this.openPercentage(100);
-      }
-
-      // Going left, less than half, too slow (snap back)
-      else if(ratio < 0 && ratio > -0.5 && direction == 'left' && velocityX < velocityThreshold) {
-        this.openPercentage(0);
-      }
-
-      // Going right, more than half, too slow (snap back)
-      else if(ratio < 0.5 && direction == 'right' && velocityX < velocityThreshold) {
-        this.openPercentage(-100);
-      }
-
-      // Going right, more than half, or quickly (snap open)
-      else if(direction == 'right' && ratio >= 0 && (ratio >= 0.5 || velocityX > velocityThreshold)) {
-        this.openPercentage(100);
-      }
-
-      // Going left, more than half, or quickly (span open)
-      else if(direction == 'left' && ratio <= 0 && (ratio <= -0.5 || velocityX > velocityThreshold)) {
-        this.openPercentage(-100);
-      }
-
-      // Snap back for safety
-      else {
-        this.openPercentage(0);
-      }
-    },
-
-    // End a drag with the given event
-    _endDrag: function(e) {
-      if(this._isDragging) {
-        this.snapToRest(e);
-      }
-      this._startX = null;
-      this._lastX = null;
-      this._offsetX = null;
-    },
-
-    // Handle a drag event
-    _handleDrag: function(e) {
-
-      // If we don't have start coords, grab and store them
-      if(!this._startX) {
-        this._startX = e.gesture.touches[0].pageX;
-        this._lastX = this._startX;
-      } else {
-        // Grab the current tap coords
-        this._lastX = e.gesture.touches[0].pageX;
-      }
-
-      // Calculate difference from the tap points
-      if(!this._isDragging && Math.abs(this._lastX - this._startX) > this.dragThresholdX) {
-        // if the difference is greater than threshold, start dragging using the current
-        // point as the starting point
-        this._startX = this._lastX;
-
-        this._isDragging = true;
-        // Initialize dragging
-        this.content.disableAnimation();
-        this._offsetX = this.getOpenAmount();
-      }
-
-      if(this._isDragging) {
-        this.openAmount(this._offsetX + (this._lastX - this._startX));
-      }
-    }
   });
 
 })(ionic);
