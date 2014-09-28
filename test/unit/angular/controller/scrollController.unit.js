@@ -4,6 +4,7 @@ describe('$ionicScroll Controller', function() {
 
   beforeEach(function() {
     ionic.Platform.ready = function(cb) { cb(); };
+    ionic.requestAnimationFrame = function(cb) { cb(); };
   });
 
   var scope, ctrl, timeout;
@@ -144,7 +145,7 @@ describe('$ionicScroll Controller', function() {
     setup();
     spyOn(ctrl.scrollView, 'getValues');
     scope.$destroy();
-    expect(ctrl.scrollView.getValues).not.toHaveBeenCalled();
+    expect(ctrl.scrollView).toEqual(null);
     expect($$scrollValueCache).toEqual({});
   }));
 
@@ -155,7 +156,7 @@ describe('$ionicScroll Controller', function() {
       return 'scrollValues';
     });
     scope.$destroy();
-    expect(ctrl.scrollView.getValues).toHaveBeenCalled();
+    expect(ctrl.scrollView).toEqual(null);
     expect($$scrollValueCache).toEqual({
       'super': 'scrollValues'
     });
@@ -242,7 +243,6 @@ describe('$ionicScroll Controller', function() {
             return { then: function(cb) { cb(); } };
           };
         });
-
         it('scrollToRememberedPosition should work', inject(function($$scrollValueCache) {
           spyOn(ctrl.scrollView, 'scrollTo');
           $$scrollValueCache.foo = { left: 3, top: 4 };
@@ -380,20 +380,14 @@ describe('$ionicScroll Controller', function() {
     expect(scope.$onPulling).toHaveBeenCalled();
 
     refreshingCb();
-    expect(refresher.classList.contains('active')).toBe(true);
     expect(refresher.classList.contains('refreshing')).toBe(false);
 
     expect(scope.$onRefresh).not.toHaveBeenCalled();
 
     doneCb();
-    expect(refresher.classList.contains('active')).toBe(true);
-    expect(refresher.classList.contains('refreshing')).toBe(true);
     expect(scope.$onRefresh).toHaveBeenCalled();
-    timeout.flush();
 
     expect(refresher.classList.contains('active')).toBe(false);
-    expect(refresher.classList.contains('refreshing')).toBe(false);
-    expect(refresher.classList.contains('invisible')).toBe(true);
 
     showCb();
     expect(refresher.classList.contains('invisible')).toBe(false);

@@ -372,7 +372,7 @@ ionic.views.Scroll = ionic.views.View.inherit({
         return Math.max(self.__content.scrollWidth, self.__content.offsetWidth);
       },
       getContentHeight: function() {
-        return Math.max(self.__content.scrollHeight, self.__content.offsetHeight + self.__content.offsetTop);
+        return Math.max(self.__content.scrollHeight, self.__content.offsetHeight + (self.__content.offsetTop * 2));
       }
     };
 
@@ -621,9 +621,7 @@ ionic.views.Scroll = ionic.views.View.inherit({
     // Event Handler
     var container = this.__container;
 
-    //Broadcasted when keyboard is shown on some platforms.
-    //See js/utils/keyboard.js
-    container.addEventListener('scrollChildIntoView', function(e) {
+    self.scrollChildIntoView = function(e) {
 
       //distance from bottom of scrollview to top of viewport
       var scrollBottomOffsetToTop;
@@ -685,16 +683,23 @@ ionic.views.Scroll = ionic.views.View.inherit({
       //Only the first scrollView parent of the element that broadcasted this event
       //(the active element that needs to be shown) should receive this event
       e.stopPropagation();
-    });
+    };
 
-    container.addEventListener('resetScrollView', function(e) {
+    self.resetScrollView = function(e) {
       //return scrollview to original height once keyboard has hidden
-      self.isScrolledIntoView = false;
-      container.style.height = "";
-      container.style.overflow = "";
-      self.resize();
-      ionic.scroll.isScrolling = false;
-    });
+      if(self.isScrolledIntoView) {
+        self.isScrolledIntoView = false;
+        container.style.height = "";
+        container.style.overflow = "";
+        self.resize();
+        ionic.scroll.isScrolling = false;
+      }
+    };
+
+    //Broadcasted when keyboard is shown on some platforms.
+    //See js/utils/keyboard.js
+    container.addEventListener('scrollChildIntoView', self.scrollChildIntoView);
+    container.addEventListener('resetScrollView', self.resetScrollView);
 
     function getEventTouches(e) {
       return e.touches && e.touches.length ? e.touches : [{
@@ -865,6 +870,7 @@ ionic.views.Scroll = ionic.views.View.inherit({
 
   __cleanup: function() {
     var container = this.__container;
+    var self = this;
 
     container.removeEventListener('touchstart', self.touchStart);
     document.removeEventListener('touchmove', self.touchMove);
@@ -886,13 +892,25 @@ ionic.views.Scroll = ionic.views.View.inherit({
     document.removeEventListener("mouseup", self.mouseUp);
     document.removeEventListener('mousewheel', self.mouseWheel);
 
+    container.removeEventListener('scrollChildIntoView', self.scrollChildIntoView);
+    container.removeEventListener('resetScrollView', self.resetScrollView);
+
+    ionic.tap.removeClonedInputs(container, self);
+
     delete this.__container;
     delete this.__content;
     delete this.__indicatorX;
     delete this.__indicatorY;
+    delete this.options.el;
 
-    this.resize = this.scrollTo = this.zoomTo = 
+    this.__callback = this.scrollChildIntoView = this.resetScrollView = angular.noop;
+
+    this.mouseMove = this.mouseDown = this.mouseUp = this.mouseWheel =
+      this.touchStart = this.touchMove = this.touchEnd = this.touchCancel = angular.noop;
+
+    this.resize = this.scrollTo = this.zoomTo =
       this.__scrollingComplete = angular.noop;
+    container = null;
   },
 
   /** Create a scroll bar div with the given direction **/
@@ -900,7 +918,7 @@ ionic.views.Scroll = ionic.views.View.inherit({
     var bar = document.createElement('div'),
       indicator = document.createElement('div');
 
-    indicator.className = 'scroll-bar-indicator';
+    indicator.className = 'scroll-bar-indicator scroll-bar-fade-out';
 
     if(direction == 'h') {
       bar.className = 'scroll-bar scroll-bar-h';
@@ -1098,6 +1116,8 @@ ionic.views.Scroll = ionic.views.View.inherit({
   },
 
   resize: function() {
+    if(!this.__container || !this.options) return;
+
     // Update Scroller dimensions for changed content
     // Add padding to bottom of content
     this.setDimensions(
@@ -1266,17 +1286,21 @@ ionic.views.Scroll = ionic.views.View.inherit({
    * @param startCallback {Function} Callback to execute to start the real async refresh action. Call {@link #finishPullToRefresh} after finish of refresh.
    * @param showCallback {Function} Callback to execute when the refresher should be shown. This is for showing the refresher during a negative scrollTop.
    * @param hideCallback {Function} Callback to execute when the refresher should be hidden. This is for hiding the refresher when it's behind the nav bar.
+   * @param tailCallback {Function} Callback to execute just before the refresher returns to it's original state. This is for zooming out the refresher.
    */
-  activatePullToRefresh: function(height, activateCallback, deactivateCallback, startCallback, showCallback, hideCallback) {
+  activatePullToRefresh: function(height, activateCallback, deactivateCallback, startCallback, showCallback, hideCallback, tailCallback) {
 
     var self = this;
 
     self.__refreshHeight = height;
-    self.__refreshActivate = activateCallback;
-    self.__refreshDeactivate = deactivateCallback;
-    self.__refreshStart = startCallback;
-    self.__refreshShow = showCallback;
-    self.__refreshHide = hideCallback;
+    self.__refreshActivate = function(){ionic.requestAnimationFrame(activateCallback);};
+    self.__refreshDeactivate = function(){ionic.requestAnimationFrame(deactivateCallback);};
+    self.__refreshStart = function(){ionic.requestAnimationFrame(startCallback);};
+    self.__refreshShow = function(){ionic.requestAnimationFrame(showCallback);};
+    self.__refreshHide = function(){ionic.requestAnimationFrame(hideCallback);};
+    self.__refreshTail = function(){ionic.requestAnimationFrame(tailCallback);};
+    self.__refreshTailTime = 100;
+    self.__minSpinTime = 600;
   },
 
 
@@ -1287,6 +1311,9 @@ ionic.views.Scroll = ionic.views.View.inherit({
     // Use publish instead of scrollTo to allow scrolling to out of boundary position
     // We don't need to normalize scrollLeft, zoomLevel, etc. here because we only y-scrolling when pull-to-refresh is enabled
     this.__publish(this.__scrollLeft, -this.__refreshHeight, this.__zoomLevel, true);
+
+    var d = new Date();
+    self.refreshStartTime = d.getTime();
 
     if (this.__refreshStart) {
       this.__refreshStart();
@@ -1300,14 +1327,28 @@ ionic.views.Scroll = ionic.views.View.inherit({
   finishPullToRefresh: function() {
 
     var self = this;
-
-    self.__refreshActive = false;
-    if (self.__refreshDeactivate) {
-      self.__refreshDeactivate();
+    // delay to make sure the spinner has a chance to spin for a split second before it's dismissed
+    var d = new Date();
+    var delay = 0;
+    if(self.refreshStartTime + self.__minSpinTime > d.getTime()){
+      delay = self.refreshStartTime + self.__minSpinTime - d.getTime();
     }
+    setTimeout(function(){
+      if(self.__refreshTail){
+        self.__refreshTail();
+      }
+      setTimeout(function(){
+        self.__refreshActive = false;
+        if (self.__refreshDeactivate) {
+          self.__refreshDeactivate();
+        }
+        if(self.__refreshHide){
+          self.__refreshHide();
+        }
 
-    self.scrollTo(self.__scrollLeft, self.__scrollTop, true);
-
+        self.scrollTo(self.__scrollLeft, self.__scrollTop, true);
+      },self.__refreshTailTime);
+    },delay);
   },
 
 
@@ -1919,10 +1960,14 @@ ionic.views.Scroll = ionic.views.View.inherit({
         // We don't need to normalize scrollLeft, zoomLevel, etc. here because we only y-scrolling when pull-to-refresh is enabled
         self.__publish(self.__scrollLeft, -self.__refreshHeight, self.__zoomLevel, true);
 
+        var d = new Date();
+        self.refreshStartTime = d.getTime();
+
         if (self.__refreshStart) {
           self.__refreshStart();
         }
-
+        // for iOS-ey style scrolling
+        if(!ionic.Platform.isAndroid())self.__startDeceleration();
       } else {
 
         if (self.__interruptedAnimation || self.__isDragging) {
@@ -2119,7 +2164,7 @@ ionic.views.Scroll = ionic.views.View.inherit({
       self.__minDecelerationScrollTop = 0;
       self.__maxDecelerationScrollLeft = self.__maxScrollLeft;
       self.__maxDecelerationScrollTop = self.__maxScrollTop;
-
+      if(self.__refreshActive) self.__minDecelerationScrollTop = self.__refreshHeight *-1;
     }
 
     // Wrap class method
@@ -2140,11 +2185,11 @@ ionic.views.Scroll = ionic.views.View.inherit({
 
         //Make sure the scroll values are within the boundaries after a bounce,
         //not below 0 or above maximum
-        if (self.options.bouncing) {
+        if (self.options.bouncing && !self.__refreshActive) {
           self.scrollTo(
             Math.min( Math.max(self.__scrollLeft, 0), self.__maxScrollLeft ),
             Math.min( Math.max(self.__scrollTop, 0), self.__maxScrollTop ),
-            false
+            self.__refreshActive
           );
         }
       }
